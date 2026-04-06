@@ -1,6 +1,5 @@
 package com.claudecompanion.voice
 
-import android.content.Intent
 import com.claudecompanion.data.local.ApiKeyStore
 import com.claudecompanion.data.remote.AnthropicStreamingClient
 import com.claudecompanion.data.remote.StreamEvent
@@ -96,14 +95,21 @@ class ConversationOrchestrator @Inject constructor(
         }
     }
 
-    private fun startListening() {
-        _state.value = AppState.Listening
-        ear.startListening(Locale.US)
-    }
-
     fun cancelListening() {
         ear.cancel()
         _state.value = AppState.Idle
+    }
+
+    fun setHoldMode(enabled: Boolean) {
+        ear.holdMode = enabled
+        if (!enabled) {
+            ear.releaseHold()
+        }
+    }
+
+    private fun startListening() {
+        _state.value = AppState.Listening
+        ear.startListening(Locale.US)
     }
 
     private fun onSpeechResult(scope: CoroutineScope, text: String) {

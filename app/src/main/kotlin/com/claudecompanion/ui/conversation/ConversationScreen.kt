@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -186,7 +187,7 @@ fun ConversationScreen(
             }
         }
 
-        // Bottom: Mic button + Cancel
+        // Bottom: Cancel + Hold + Mic
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -195,7 +196,7 @@ fun ConversationScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Cancel button – only visible while listening
+            // Cancel button
             AnimatedVisibility(
                 visible = appState is AppState.Listening || appState is AppState.Transcribing
             ) {
@@ -211,6 +212,43 @@ fun ConversationScreen(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Cancel",
                         tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Hold toggle
+            AnimatedVisibility(
+                visible = appState is AppState.Listening || appState is AppState.Transcribing
+            ) {
+                var holdActive by remember { mutableStateOf(false) }
+
+                // Reset hold state when leaving listening
+                LaunchedEffect(appState) {
+                    if (appState !is AppState.Listening && appState !is AppState.Transcribing) {
+                        holdActive = false
+                    }
+                }
+
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (holdActive) MaterialTheme.colorScheme.tertiary
+                            else MaterialTheme.colorScheme.surface
+                        )
+                        .clickable {
+                            holdActive = !holdActive
+                            viewModel.onHoldToggle(holdActive)
+                        }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PanTool,
+                        contentDescription = "Hold",
+                        tint = if (holdActive) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(20.dp)
                     )
                 }

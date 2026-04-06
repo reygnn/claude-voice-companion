@@ -23,9 +23,11 @@ interface VoiceInputManager {
     val state: StateFlow<ListeningState>
     val partialResults: SharedFlow<String>
     val finalResult: SharedFlow<String>
+    var holdMode: Boolean
     fun startListening(language: Locale = Locale.US)
     fun stopListening()
     fun cancel()
+    fun releaseHold()
 }
 
 @Singleton
@@ -45,10 +47,13 @@ class VoiceInputManagerImpl @Inject constructor(
     private var speechRecognizer: SpeechRecognizer? = null
     private var lastIntent: Intent? = null
     private var didFallback = false
+    override var holdMode = false
+    private val collectedText = StringBuilder()
 
     override fun startListening(language: Locale) {
         cancel()
         didFallback = false
+        collectedText.clear()
         speechRecognizer = if (SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
             android.util.Log.d("VoiceInput", "Using ON-DEVICE recognizer")
             SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
@@ -81,7 +86,20 @@ class VoiceInputManagerImpl @Inject constructor(
         speechRecognizer?.cancel()
         speechRecognizer?.destroy()
         speechRecognizer = null
+        holdMode = false
+        collectedText.clear()
         _state.value = ListeningState.Idle
+    }
+
+    override fun releaseHold() {
+        holdMode = false
+        val text = collectedText.toString().trim()
+        collectedText.clear()
+        if (text.isNotBlank()) {
+            android.util.Log.d("VoiceInput", "releaseHold: emitting '$text'")
+            _finalResult.tryEmit(text)
+        }
+        stopListening()
     }
 
     private fun fallbackToCloud() {
@@ -100,9 +118,26 @@ class VoiceInputManagerImpl @Inject constructor(
                 ?.firstOrNull().orEmpty()
             android.util.Log.d("VoiceInput", "onResults: '$text'")
             if (text.isNotBlank()) {
-                _finalResult.tryEmit(text)
+                if (holdMode) {
+                    collectedText.append(" ").append(text)
+                    _partialResults.tryEmit(collectedText.toString().trim())
+                    // Restart listening to keep collecting
+                    lastIntent?.let { speechRecognizer?.startListening(it) }
+                } else {
+                    val final = if (collectedText.isNotBlank()) {
+                        collectedText.append(" ").append(text).toString().trim()
+                    } else text
+                    collectedText.clear()
+                    _finalResult.tryEmit(final)
+                    _state.value = ListeningState.Idle
+                }
+            } else {
+                if (holdMode) {
+                    lastIntent?.let { speechRecognizer?.startListening(it) }
+                } else {
+                    _state.value = ListeningState.Idle
+                }
             }
-            _state.value = ListeningState.Idle
         }
 
         override fun onPartialResults(partialResults: Bundle?) {
@@ -110,12 +145,22 @@ class VoiceInputManagerImpl @Inject constructor(
                 ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 ?.firstOrNull().orEmpty()
             if (text.isNotBlank()) {
-                android.util.Log.d("VoiceInput", "onPartial: '$text'")
-                _partialResults.tryEmit(text)
+                val display = if (collectedText.isNotBlank()) {
+                    "${collectedText.toString().trim()} $text"
+                } else text
+                android.util.Log.d("VoiceInput", "onPartial: '$display'")
+                _partialResults.tryEmit(display)
             }
         }
 
         override fun onError(error: Int) {
+            // In hold mode, restart on silence-related errors
+            if (holdMode && (error == SpeechRecognizer.ERROR_NO_MATCH
+                        || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
+                android.util.Log.d("VoiceInput", "Hold mode: restarting after silence")
+                lastIntent?.let { speechRecognizer?.startListening(it) }
+                return
+            }
             if (error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED && !didFallback) {
                 didFallback = true
                 fallbackToCloud()
@@ -143,7 +188,9 @@ class VoiceInputManagerImpl @Inject constructor(
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() {
             android.util.Log.d("VoiceInput", "Speech ended")
-            _state.value = ListeningState.Processing
+            if (!holdMode) {
+                _state.value = ListeningState.Processing
+            }
         }
         override fun onEvent(eventType: Int, params: Bundle?) {}
     }

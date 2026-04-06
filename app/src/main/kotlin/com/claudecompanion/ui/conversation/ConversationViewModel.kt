@@ -35,8 +35,6 @@ class ConversationViewModel @Inject constructor(
         orchestrator.start(viewModelScope)
         viewModelScope.launch {
             orchestrator.loadOrCreateConversation()
-            // Get the conversation ID from the orchestrator indirectly
-            // by creating one and tracking it
         }
     }
 
@@ -59,6 +57,10 @@ class ConversationViewModel @Inject constructor(
 
     fun onCancelListening() {
         orchestrator.cancelListening()
+    }
+
+    fun onHoldToggle(enabled: Boolean) {
+        orchestrator.setHoldMode(enabled)
     }
 
     fun dismissError() {
