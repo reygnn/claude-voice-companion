@@ -49,6 +49,36 @@ class VoiceOutputManagerImpl @Inject constructor(
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale.US
+
+                // Try warm male voices in order of preference
+                val preferredVoices = listOf(
+                    "en-us-x-tpd-network",  // natural male neural voice
+                    "en-us-x-sfg-network",  // warm deep male
+                    "en-us-x-iom-network",  // clear male
+                    "en-us-x-tpd-local",    // offline fallback
+                    "en-us-x-sfg-local",
+                    "en-us-x-iom-local"
+                )
+
+                val availableVoices = tts?.voices.orEmpty()
+                availableVoices.forEach {
+                    android.util.Log.d("TTS", "Available: ${it.name} (${it.locale})")
+                }
+
+                val selected = preferredVoices.firstNotNullOfOrNull { preferred ->
+                    availableVoices.firstOrNull { it.name == preferred }
+                }
+
+                if (selected != null) {
+                    tts?.voice = selected
+                    android.util.Log.d("TTS", "Selected voice: ${selected.name}")
+                } else {
+                    android.util.Log.w("TTS", "No preferred voice found, using default")
+                }
+
+                tts?.setPitch(0.9f)
+                tts?.setSpeechRate(0.95f)
+
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {
                         _state.value = SpeakingState.Speaking
