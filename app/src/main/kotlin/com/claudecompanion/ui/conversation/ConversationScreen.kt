@@ -75,10 +75,18 @@ fun ConversationScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             IconButton(onClick = onNavigateToHistory) {
-                Icon(Icons.Default.History, "History", tint = MaterialTheme.colorScheme.onBackground)
+                Icon(
+                    Icons.Default.History,
+                    "History",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
             }
             IconButton(onClick = onNavigateToSettings) {
-                Icon(Icons.Default.Settings, "Settings", tint = MaterialTheme.colorScheme.onBackground)
+                Icon(
+                    Icons.Default.Settings,
+                    "Settings",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
             }
         }
 
@@ -187,43 +195,26 @@ fun ConversationScreen(
             }
         }
 
-        // Bottom: Cancel + Hold + Mic
-        Row(
+// Bottom: Hold + Mic + Cancel
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 48.dp)
-                .navigationBarsPadding(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(24.dp)
+                .navigationBarsPadding()
         ) {
-            // Cancel button
-            AnimatedVisibility(
-                visible = appState is AppState.Listening || appState is AppState.Transcribing
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.secondary)
-                        .clickable { viewModel.onCancelListening() }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Cancel",
-                        tint = MaterialTheme.colorScheme.onSecondary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
+            // Mic always centered
+            MicrophoneButton(
+                appState = appState,
+                onClick = { viewModel.onMicrophoneTapped() }
+            )
 
-            // Hold toggle
+            // Hold button – left of mic
             AnimatedVisibility(
-                visible = appState is AppState.Listening || appState is AppState.Transcribing
+                visible = appState is AppState.Listening || appState is AppState.Transcribing,
+                modifier = Modifier.align(Alignment.CenterStart).offset(x = (-88).dp)
             ) {
                 var holdActive by remember { mutableStateOf(false) }
 
-                // Reset hold state when leaving listening
                 LaunchedEffect(appState) {
                     if (appState !is AppState.Listening && appState !is AppState.Transcribing) {
                         holdActive = false
@@ -254,10 +245,27 @@ fun ConversationScreen(
                 }
             }
 
-            MicrophoneButton(
-                appState = appState,
-                onClick = { viewModel.onMicrophoneTapped() }
-            )
+            // Cancel button – right of mic
+            AnimatedVisibility(
+                visible = appState is AppState.Listening || appState is AppState.Transcribing,
+                modifier = Modifier.align(Alignment.CenterEnd).offset(x = 88.dp)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.secondary)
+                        .clickable { viewModel.onCancelListening() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cancel",
+                        tint = MaterialTheme.colorScheme.onSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
         }
     }
 }
